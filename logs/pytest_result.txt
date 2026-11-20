@@ -1,0 +1,12 @@
+============================= test session starts ==============================
+platform linux -- Python 3.11.18, pytest-9.2.0, pluggy-1.7.0 -- /usr/local/bin/python
+cachedir: .pytest_cache
+rootdir: /app
+plugins: anyio-4.16.0, langsmith-0.15.1
+collecting ... collected 3 items
+
+tests/test_tools.py::test_friday_scenario_original_plan_fails PASSED     [ 33%]
+tests/test_tools.py::test_failure_case_1_missing_travel_time PASSED      [ 66%]
+tests/test_tools.py::test_failure_case_2_unapproved_and_version_conflict PASSED [100%]
+
+============================== 3 passed in 0.10s ===============================
