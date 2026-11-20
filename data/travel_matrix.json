@@ -1,0 +1,30 @@
+{
+  "matrix_id": "TM-2026-V1",
+  "version": "tm_v1",
+  "routes": [
+    {
+      "rule_id": "LOC-01",
+      "from_location": "三峽校區",
+      "to_location": "三峽校區",
+      "base_minutes": 0,
+      "buffer_minutes": 0,
+      "condition": "同校區移動"
+    },
+    {
+      "rule_id": "LOC-02",
+      "from_location": "三峽校區",
+      "to_location": "台北市區",
+      "base_minutes": 75,
+      "buffer_minutes": 15,
+      "condition": "尖峰大眾運輸基準75分鐘+安全緩衝15分鐘"
+    },
+    {
+      "rule_id": "LOC-03",
+      "from_location": "台北市區",
+      "to_location": "三峽校區",
+      "base_minutes": 65,
+      "buffer_minutes": 15,
+      "condition": "離峰大眾運輸基準65分鐘+安全緩衝15分鐘"
+    }
+  ]
+}
