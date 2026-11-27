@@ -216,6 +216,7 @@ d27caf2d3cd1af9b6b90ce6636b67005172ffff3c9e68865c7c1b6d24140c1fa linux/amd64
 
 === 容器向同一 Ollama 0.5.13 發送短生成請求 ===
 qwen2.5:1.5b OK True
+OpenAI 相容端點 /v1/chat/completions 短請求，max_tokens=4：OK!
 
 完整自然語言工具軌跡另存 ollama-conversation.txt，執行於 Linux 宿主。
 在此 CPU 模擬 VM 的兩次完整模型工具請求到達 90 秒上限。
