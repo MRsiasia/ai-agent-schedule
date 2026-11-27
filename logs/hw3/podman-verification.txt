@@ -218,4 +218,10 @@ d27caf2d3cd1af9b6b90ce6636b67005172ffff3c9e68865c7c1b6d24140c1fa linux/amd64
 qwen2.5:1.5b OK True
 
 完整自然語言工具軌跡另存 ollama-conversation.txt，執行於 Linux 宿主。
-在此 CPU 模擬 VM 的一次完整模型工具請求到達 90 秒上限。
+在此 CPU 模擬 VM 的兩次完整模型工具請求到達 90 秒上限。
+
+=== ARM64 基礎映像啟動（QEMU 模擬） ===
+podman version 5.4.2
+58145caec316fb5cec5f429064bb41a42a5e3984f19d048ab76c834949153076 linux/arm64
+aarch64
+完整的 ARM64 Agent 執行尚未取得結果。
