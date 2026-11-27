@@ -1,0 +1,9 @@
+{
+  "version": "dag_cycle_v1",
+  "user_id": "u_411385045",
+  "timezone": "Asia/Taipei",
+  "tasks": [
+    {"id": "CY-A", "start": "2026-12-03T09:00", "end": "2026-12-03T09:30", "deadline": "2026-12-03T10:00", "predecessors": ["CY-B"]},
+    {"id": "CY-B", "start": "2026-12-03T09:30", "end": "2026-12-03T10:00", "deadline": "2026-12-03T10:30", "predecessors": ["CY-A"]}
+  ]
+}

@@ -2,6 +2,7 @@ import json
 import os
 import sqlite3
 import uuid
+from pathlib import Path
 from typing import Annotated, Any, Literal, Optional, TypedDict
 
 from dotenv import load_dotenv
@@ -14,8 +15,9 @@ from langgraph.graph.message import add_messages
 from langgraph.types import interrupt
 
 from src.db import DEFAULT_DB_PATH, ScheduleDB
+from src.dependencies import MAX_DEPTH, ImpactRequest, trace_task_impact
 from src.schemas import CheckConstraintsInput, CommitActionInput, GetContextInput, ScheduleEvent
-from src.tools import check_schedule_constraints, commit_schedule_action, get_schedule_context
+from src.tools import DATA_DIR, check_schedule_constraints, commit_schedule_action, get_schedule_context
 
 load_dotenv()
 
@@ -31,14 +33,21 @@ class AgentState(TypedDict):
     calendar_version: Optional[str]
     pending_commit: Optional[dict]
     approval_decision: Optional[str]
+    impact_request: Optional[dict]
+    impact_result: Optional[dict]
+    impact_observed: bool
 
 
 def build_llm() -> ChatOpenAI:
     return ChatOpenAI(
         base_url=os.getenv("LLM_BASE_URL", "http://localhost:11434/v1"),
         api_key=os.getenv("LLM_API_KEY", "ollama"),
-        model=os.getenv("LLM_MODEL", "qwen2.5:3b"),
+        model=os.getenv("LLM_MODEL", "qwen2.5:1.5b"),
         temperature=0.0,
+        # Ollama's OpenAI-compatible endpoint uses max_tokens.
+        extra_body={"max_tokens": 384},
+        timeout=90,
+        max_retries=0,
     )
 
 
@@ -59,8 +68,9 @@ def _normalize_query_type(val: Any) -> str:
     return "all"
 
 
-def create_agent_graph(db_path=DEFAULT_DB_PATH):
+def create_agent_graph(db_path=DEFAULT_DB_PATH, *, data_dir: Path = DATA_DIR, dependency_enabled: bool = True):
     db = ScheduleDB(db_path=db_path)
+    server_user_id = os.getenv("SERVER_USER_ID", "u_411385045")
 
     @tool
     def tool_get_schedule_context(date_range: str, query_type: str = "all") -> str:
@@ -69,8 +79,9 @@ def create_agent_graph(db_path=DEFAULT_DB_PATH):
         norm_qtype = _normalize_query_type(query_type)
         resp = get_schedule_context(
             GetContextInput(date_range=norm_date, query_type=norm_qtype),  # type: ignore[arg-type]
-            server_user_id=os.getenv("SERVER_USER_ID", "u_411385045"),
+            server_user_id=server_user_id,
             db=db,
+            data_dir=data_dir,
         )
         return resp.model_dump_json(ensure_ascii=False)
 
@@ -96,7 +107,8 @@ def create_agent_graph(db_path=DEFAULT_DB_PATH):
                 existing_events=exist,
                 travel_matrix_id=str(travel_matrix_id),
                 max_daily_hours=float(max_daily_hours),
-            )
+            ),
+            data_dir=data_dir,
         )
         return resp.model_dump_json(ensure_ascii=False)
 
@@ -124,19 +136,44 @@ def create_agent_graph(db_path=DEFAULT_DB_PATH):
         }
         return json.dumps({"status": "PENDING_APPROVAL", "proposed_event": payload}, ensure_ascii=False)
 
+    @tool
+    def tool_trace_task_impact(
+        task_id: str, delay_minutes: int, dag_version: str, max_depth: int = MAX_DEPTH
+    ) -> str:
+        """唯讀追蹤任務延誤。輸入任務 ID、延後分鐘、資料版本（示範 dag_v1），可選最大深度。回傳受影響任務、路徑、死線裕量與錯誤代碼。"""
+        return trace_task_impact(
+            ImpactRequest(task_id=task_id, delay_minutes=delay_minutes, dag_version=dag_version, max_depth=max_depth),
+            server_user_id=server_user_id,
+            data_dir=data_dir,
+        ).model_dump_json(ensure_ascii=False)
+
     tools = [tool_get_schedule_context, tool_check_schedule_constraints, tool_propose_schedule_commit]
+    if dependency_enabled:
+        tools.append(tool_trace_task_impact)
     tool_map = {t.name: t for t in tools}
     llm_with_tools = build_llm().bind_tools(tools)
 
-    system_prompt = SystemMessage(
-        content=(
-            "你是個人行程與多目標排程規劃 Agent。"
-            "呼叫工具時請嚴格遵守各參數型別，字串參數請傳純字串。"
-            "所有時間重疊、跨區通勤加緩衝與單日工時上限（預設 9 小時）都必須呼叫 tool_check_schedule_constraints 核算，"
-            "查無通勤時間時嚴禁猜測或補 0，必須明確指出資料缺口並提出補問或替代方案。"
-            "輸出時請清楚列出：可行性判斷、硬性限制檢核、風險與替代方案、待確認問題。"
-        )
+    scheduling_instructions = (
+        "你是個人行程與多目標排程規劃 Agent。"
+        "呼叫工具時請嚴格遵守各參數型別，字串參數請傳純字串。"
+        "所有時間重疊、跨區通勤加緩衝與單日工時上限（預設 9 小時）都必須呼叫 tool_check_schedule_constraints 核算，"
+        "查無通勤時間時嚴禁猜測或補 0，必須明確指出資料缺口並提出補問或替代方案。"
+        "輸出時請清楚列出：可行性判斷、硬性限制檢核、風險與替代方案、待確認問題。"
     )
+    impact_instruction = (
+        "若詢問任務延誤、相依性或死線裕量，請呼叫 tool_trace_task_impact 並以其結果為準。"
+        "參數缺漏時追問，不要捏造任務 ID 或分鐘數。延誤分析是唯讀作業。"
+        if dependency_enabled else ""
+    )
+    system_prompt = SystemMessage(content=scheduling_instructions + impact_instruction)
+
+    def impact_node(state: AgentState) -> dict:
+        result = trace_task_impact(
+            ImpactRequest.model_validate(state["impact_request"]),
+            server_user_id=server_user_id,
+            data_dir=data_dir,
+        )
+        return {"impact_result": result.model_dump(mode="json"), "tool_calls": 1}
 
     def agent_node(state: AgentState) -> dict:
         if state.get("llm_calls", 0) >= MAX_LLM_CALLS:
@@ -154,6 +191,7 @@ def create_agent_graph(db_path=DEFAULT_DB_PATH):
         tool_messages: list[ToolMessage] = []
         pending_commit = state.get("pending_commit")
         calls_used = state.get("tool_calls", 0)
+        impact_observed = False
 
         for tc in getattr(last_msg, "tool_calls", []) or []:
             if calls_used >= MAX_TOOL_CALLS:
@@ -179,6 +217,8 @@ def create_agent_graph(db_path=DEFAULT_DB_PATH):
             try:
                 raw_out = fn.invoke(tc["args"])
                 out_str = str(raw_out)
+                if tc["name"] == tool_trace_task_impact.name:
+                    impact_observed = True
             except Exception as exc:
                 out_str = json.dumps(
                     {"status": "ERROR", "error": {"code": "TOOL_ARGS_ERROR", "message": f"工具參數或執行錯誤：{exc}"}},
@@ -198,7 +238,8 @@ def create_agent_graph(db_path=DEFAULT_DB_PATH):
         return {
             "messages": tool_messages,
             "tool_calls": calls_used,
-            "pending_commit": pending_commit,
+            "pending_commit": None if impact_observed else pending_commit,
+            "impact_observed": impact_observed,
         }
 
     def human_review_node(state: AgentState) -> dict:
@@ -255,7 +296,9 @@ def create_agent_graph(db_path=DEFAULT_DB_PATH):
             return "tools"
         return "end"
 
-    def route_after_tools(state: AgentState) -> Literal["human_review", "agent"]:
+    def route_after_tools(state: AgentState) -> Literal["human_review", "agent", "end"]:
+        if state.get("impact_observed"):
+            return "end"
         if state.get("pending_commit"):
             return "human_review"
         return "agent"
@@ -266,9 +309,18 @@ def create_agent_graph(db_path=DEFAULT_DB_PATH):
     graph.add_node("human_review", human_review_node)
     graph.add_node("execute_commit", execute_commit_node)
 
-    graph.add_edge(START, "agent")
+    if dependency_enabled:
+        # Structured requests enter the same graph with an explicit intent.
+        graph.add_node("impact", impact_node)
+        graph.add_conditional_edges(
+            START, lambda state: "impact" if state.get("impact_request") else "agent",
+            {"impact": "impact", "agent": "agent"},
+        )
+        graph.add_edge("impact", END)
+    else:
+        graph.add_edge(START, "agent")
     graph.add_conditional_edges("agent", route_after_agent, {"tools": "tools", "end": END})
-    graph.add_conditional_edges("tools", route_after_tools, {"human_review": "human_review", "agent": "agent"})
+    graph.add_conditional_edges("tools", route_after_tools, {"human_review": "human_review", "agent": "agent", "end": END})
     graph.add_edge("human_review", "execute_commit")
     graph.add_edge("execute_commit", "agent")
 

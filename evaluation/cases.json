@@ -1,0 +1,520 @@
+[
+  {
+    "id": "T01",
+    "group": "schedule",
+    "title": "跨區通勤差 30 分鐘",
+    "question": "16:00–18:00 在三峽討論，19:00 台北上班。能否準時？17:30 結束呢？",
+    "existing": [
+      {
+        "event_id": "CAL-01",
+        "title": "CAL-01",
+        "start": "2026-11-20T13:00",
+        "end": "2026-11-20T16:00",
+        "location": "三峽校區"
+      },
+      {
+        "event_id": "CAL-02",
+        "title": "CAL-02",
+        "start": "2026-11-20T19:00",
+        "end": "2026-11-20T22:30",
+        "location": "台北市區"
+      }
+    ],
+    "options": {
+      "original": [
+        {
+          "event_id": "DISCUSS",
+          "title": "DISCUSS",
+          "start": "2026-11-20T16:00",
+          "end": "2026-11-20T18:00",
+          "location": "三峽校區"
+        }
+      ],
+      "shortened": [
+        {
+          "event_id": "DISCUSS",
+          "title": "DISCUSS",
+          "start": "2026-11-20T16:00",
+          "end": "2026-11-20T17:30",
+          "location": "三峽校區"
+        }
+      ]
+    },
+    "expected": {
+      "status": "PASS",
+      "best": "shortened",
+      "options": {
+        "original": {
+          "status": "FAIL",
+          "travel_slack": [
+            -30
+          ],
+          "violations": [
+            "TRAVEL_BUFFER_VIOLATION"
+          ]
+        },
+        "shortened": {
+          "status": "PASS",
+          "travel_slack": [
+            0
+          ]
+        }
+      }
+    },
+    "oracle_notes": "60−(75+15)=−30。17:30 結束才有 90 分鐘，零額外裕量。"
+  },
+  {
+    "id": "T02",
+    "group": "schedule",
+    "title": "壓線到達",
+    "question": "17:30 結束三峽討論，19:00 在台北排班，通勤加緩衝後還有幾分鐘？",
+    "existing": [
+      {
+        "event_id": "CAL-02",
+        "title": "CAL-02",
+        "start": "2026-11-20T19:00",
+        "end": "2026-11-20T22:30",
+        "location": "台北市區"
+      }
+    ],
+    "options": {
+      "original": [
+        {
+          "event_id": "DISCUSS",
+          "title": "DISCUSS",
+          "start": "2026-11-20T16:00",
+          "end": "2026-11-20T17:30",
+          "location": "三峽校區"
+        }
+      ]
+    },
+    "expected": {
+      "status": "PASS",
+      "options": {
+        "original": {
+          "status": "PASS",
+          "travel_slack": [
+            0
+          ],
+          "zero_travel_slack": true
+        }
+      }
+    },
+    "oracle_notes": "90−90=0，含既定 15 分鐘安全緩衝，額外裕量為零。"
+  },
+  {
+    "id": "T03",
+    "group": "schedule",
+    "title": "通勤資料缺漏",
+    "question": "16:00 三峽下課，18:00 新竹面試，可以到嗎？",
+    "existing": [
+      {
+        "event_id": "CAL-01",
+        "title": "CAL-01",
+        "start": "2026-11-20T13:00",
+        "end": "2026-11-20T16:00",
+        "location": "三峽校區"
+      }
+    ],
+    "options": {
+      "original": [
+        {
+          "event_id": "INTERVIEW",
+          "title": "INTERVIEW",
+          "start": "2026-11-20T18:00",
+          "end": "2026-11-20T19:00",
+          "location": "新竹科學園區"
+        }
+      ]
+    },
+    "expected": {
+      "status": "UNKNOWN",
+      "options": {
+        "original": {
+          "status": "UNKNOWN",
+          "error": "MISSING_TRAVEL_TIME"
+        }
+      }
+    },
+    "oracle_notes": "矩陣缺 三峽→新竹，補通勤資料前不得判為可行。"
+  },
+  {
+    "id": "T04",
+    "group": "schedule",
+    "title": "開始及結束順序錯誤",
+    "question": "想安排 18:00–17:00 的作業修改。",
+    "existing": [],
+    "options": {
+      "original": [
+        {
+          "event_id": "BACKWARDS",
+          "title": "BACKWARDS",
+          "start": "2026-11-20T18:00",
+          "end": "2026-11-20T17:00",
+          "location": "台北市區"
+        }
+      ]
+    },
+    "expected": {
+      "status": "ERROR",
+      "options": {
+        "original": {
+          "status": "ERROR",
+          "error": "INVALID_TIME_FORMAT"
+        }
+      }
+    },
+    "oracle_notes": "17:00 早於 18:00，先修正時間。"
+  },
+  {
+    "id": "T05",
+    "group": "schedule",
+    "title": "超過 9 小時專注上限",
+    "question": "已排 8 小時，再加 2 小時會超過上限嗎？",
+    "existing": [
+      {
+        "event_id": "WORK",
+        "title": "WORK",
+        "start": "2026-11-20T08:00",
+        "end": "2026-11-20T16:00",
+        "location": "台北市區"
+      }
+    ],
+    "options": {
+      "original": [
+        {
+          "event_id": "WRITE",
+          "title": "WRITE",
+          "start": "2026-11-20T17:00",
+          "end": "2026-11-20T19:00",
+          "location": "台北市區"
+        }
+      ]
+    },
+    "expected": {
+      "status": "FAIL",
+      "options": {
+        "original": {
+          "status": "FAIL",
+          "focus_hours": 10,
+          "overload_hours": 1,
+          "violations": [
+            "DAILY_HOURS_OVERLOAD"
+          ]
+        }
+      }
+    },
+    "oracle_notes": "8+2=10 小時，超標 1 小時。"
+  },
+  {
+    "id": "T06",
+    "group": "schedule",
+    "title": "下班後的高專注容量",
+    "question": "20:00 下班到 23:00 有三小時，今天能全用於專注作業嗎？先做 90 分鐘可不可行？",
+    "existing": [
+      {
+        "event_id": "WORK",
+        "title": "WORK",
+        "start": "2026-11-20T12:30",
+        "end": "2026-11-20T20:00",
+        "location": "台北市區"
+      }
+    ],
+    "options": {
+      "original": [
+        {
+          "event_id": "WRITE",
+          "title": "WRITE",
+          "start": "2026-11-20T20:00",
+          "end": "2026-11-20T23:00",
+          "location": "台北市區"
+        }
+      ],
+      "split_today": [
+        {
+          "event_id": "WRITE-TODAY",
+          "title": "WRITE-TODAY",
+          "start": "2026-11-20T20:00",
+          "end": "2026-11-20T21:30",
+          "location": "台北市區"
+        }
+      ]
+    },
+    "expected": {
+      "status": "PASS",
+      "best": "split_today",
+      "options": {
+        "original": {
+          "status": "FAIL",
+          "focus_hours": 10.5,
+          "overload_hours": 1.5
+        },
+        "split_today": {
+          "status": "PASS",
+          "focus_hours": 9
+        }
+      }
+    },
+    "oracle_notes": "9−7.5=1.5 小時，今日可做 90 分鐘，其餘 90 分鐘需另找日期並重檢。"
+  },
+  {
+    "id": "T07",
+    "group": "dependency",
+    "title": "鏈式延誤導致兩個下游違約",
+    "question": "DEV 延誤 60 分鐘。哪些下游任務順延，死線裕量各是多少？",
+    "fixture": "data/dependencies.json",
+    "request": {
+      "task_id": "DEV",
+      "delay_minutes": 60,
+      "dag_version": "dag_v1"
+    },
+    "expected": {
+      "status": "OK",
+      "root_slack": 60,
+      "affected": {
+        "QA": {
+          "delay": 45,
+          "slack": -25,
+          "path": [
+            "DEV",
+            "QA"
+          ]
+        },
+        "REPORT": {
+          "delay": 35,
+          "slack": -20,
+          "path": [
+            "DEV",
+            "QA",
+            "REPORT"
+          ]
+        }
+      },
+      "missed": [
+        "QA",
+        "REPORT"
+      ]
+    },
+    "oracle_notes": "DEV 11:00 結束；QA 11:00→11:45；REPORT 11:45→12:35。"
+  },
+  {
+    "id": "T08",
+    "group": "dependency",
+    "title": "獨立任務順延",
+    "question": "READ 延誤 30 分鐘。是否影響下游？本身期限裕量幾分鐘？",
+    "fixture": "data/dependencies.json",
+    "request": {
+      "task_id": "READ",
+      "delay_minutes": 30,
+      "dag_version": "dag_v1"
+    },
+    "expected": {
+      "status": "OK",
+      "root_slack": 50,
+      "affected": {},
+      "missed": []
+    },
+    "oracle_notes": "13:40+30m=14:10。15:00−14:10=50m，無下游。"
+  },
+  {
+    "id": "T09",
+    "group": "dependency",
+    "title": "多前置匯合取最晚完成",
+    "question": "DATA 延誤 45 分鐘。CLEAN、CHART 與 MILESTONE 各順延多久，裕量為何？",
+    "fixture": "data/dependencies.json",
+    "request": {
+      "task_id": "DATA",
+      "delay_minutes": 45,
+      "dag_version": "dag_v1"
+    },
+    "expected": {
+      "status": "OK",
+      "root_slack": 15,
+      "affected": {
+        "CLEAN": {
+          "delay": 45,
+          "slack": 45,
+          "path": [
+            "DATA",
+            "CLEAN"
+          ]
+        },
+        "CHART": {
+          "delay": 30,
+          "slack": 30,
+          "path": [
+            "DATA",
+            "CHART"
+          ]
+        },
+        "MILESTONE": {
+          "delay": 20,
+          "slack": 15,
+          "path": [
+            "DATA",
+            "CHART",
+            "MILESTONE"
+          ]
+        }
+      },
+      "missed": []
+    },
+    "oracle_notes": "CLEAN 11:15、CHART 11:30、REVIEWER 11:05；里程碑取 max=11:30，12:20 結束。"
+  },
+  {
+    "id": "T10",
+    "group": "dependency",
+    "title": "循環相依受控攔截",
+    "question": "CY-A 延誤 20 分鐘；先確認相依資料能否計算，再給出結果。",
+    "fixture": "evaluation/fixtures/cycle/dependencies.json",
+    "request": {
+      "task_id": "CY-A",
+      "delay_minutes": 20,
+      "dag_version": "dag_cycle_v1"
+    },
+    "expected": {
+      "status": "ERROR",
+      "error": "CYCLE_DETECTED",
+      "unresolved": [
+        "CY-A",
+        "CY-B"
+      ],
+      "affected": {},
+      "missed": []
+    },
+    "oracle_notes": "CY-A→CY-B→CY-A，沒有合法的拓樸順序，停止計算。"
+  },
+  {
+    "id": "T11",
+    "group": "schedule",
+    "title": "合格方案偏好切換",
+    "question": "A 同地點只留 10 分鐘，B 跨區並留 120 分鐘，C 跨區僅留 30 分鐘。切換通勤最少和裕量最大偏好。",
+    "existing": [
+      {
+        "event_id": "CAL-02",
+        "title": "CAL-02",
+        "start": "2026-11-20T19:00",
+        "end": "2026-11-20T22:30",
+        "location": "台北市區"
+      }
+    ],
+    "options": {
+      "A": [
+        {
+          "event_id": "A",
+          "title": "A",
+          "start": "2026-11-20T17:50",
+          "end": "2026-11-20T18:50",
+          "location": "台北市區"
+        }
+      ],
+      "B": [
+        {
+          "event_id": "B",
+          "title": "B",
+          "start": "2026-11-20T16:00",
+          "end": "2026-11-20T17:00",
+          "location": "三峽校區"
+        }
+      ],
+      "C": [
+        {
+          "event_id": "C",
+          "title": "C",
+          "start": "2026-11-20T17:30",
+          "end": "2026-11-20T18:30",
+          "location": "三峽校區"
+        }
+      ]
+    },
+    "expected": {
+      "status": "PASS",
+      "most_slack": "B",
+      "best": "A",
+      "options": {
+        "A": {
+          "status": "PASS",
+          "travel_minutes": 0,
+          "remaining_gap": 10
+        },
+        "B": {
+          "status": "PASS",
+          "travel_minutes": 75,
+          "remaining_gap": 30
+        },
+        "C": {
+          "status": "FAIL",
+          "travel_slack": [
+            -60
+          ]
+        }
+      }
+    },
+    "oracle_notes": "A 通勤 0／剩餘 10；B 通勤 75／剩餘 30；C 剩餘 −60，不參與排序。"
+  },
+  {
+    "id": "T12",
+    "group": "schedule",
+    "title": "候選方案皆有硬限制違反",
+    "question": "兩個候選時段都可用嗎？前一個會撞課，後一個地點在三峽，晚班在台北。",
+    "existing": [
+      {
+        "event_id": "CAL-01",
+        "title": "CAL-01",
+        "start": "2026-11-20T13:00",
+        "end": "2026-11-20T16:00",
+        "location": "三峽校區"
+      },
+      {
+        "event_id": "CAL-02",
+        "title": "CAL-02",
+        "start": "2026-11-20T19:00",
+        "end": "2026-11-20T22:30",
+        "location": "台北市區"
+      }
+    ],
+    "options": {
+      "A": [
+        {
+          "event_id": "A",
+          "title": "A",
+          "start": "2026-11-20T15:30",
+          "end": "2026-11-20T16:30",
+          "location": "三峽校區"
+        }
+      ],
+      "B": [
+        {
+          "event_id": "B",
+          "title": "B",
+          "start": "2026-11-20T17:00",
+          "end": "2026-11-20T18:30",
+          "location": "三峽校區"
+        }
+      ]
+    },
+    "expected": {
+      "status": "FAIL",
+      "best": null,
+      "negotiable_constraints": [
+        "TIME_OVERLAP",
+        "TRAVEL_BUFFER_VIOLATION"
+      ],
+      "options": {
+        "A": {
+          "status": "FAIL",
+          "violations": [
+            "TIME_OVERLAP"
+          ]
+        },
+        "B": {
+          "status": "FAIL",
+          "travel_slack": [
+            -60
+          ]
+        }
+      }
+    },
+    "oracle_notes": "A 重疊 30m；B 路程差 60m。現有候選皆不可行，須協調前置事件或換地點。"
+  }
+]
